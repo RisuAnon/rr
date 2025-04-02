@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>비 오는 효과 테스트</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(to bottom, #1a2a6c, #2a4858);
+            color: white;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .content {
+            text-align: center;
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            z-index: 1;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        p {
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        /* 비 효과 스타일 */
+        #rain-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .raindrop {
+            position: absolute;
+            background: linear-gradient(transparent, rgba(255, 255, 255, 0.8));
+            border-radius: 0;
+            pointer-events: none;
+        }
+
+        /* 슬라이더 스타일 */
+        .slider-container {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .slider-group {
+            margin-bottom: 10px;
+        }
+
+        .slider-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        .value-display {
+            font-size: 0.8em;
+            color: #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="content">
+        <h1>비 오는 효과 데모</h1>
+        <p>CSS와 JavaScript로 구현한 비 오는 효과입니다.<br>
+           아래 컨트롤을 사용하여 비의 양, 속도, 크기 등을 조절해보세요.</p>
+        
+        <div class="controls">
+            <button id="start-rain">비 시작</button>
+            <button id="stop-rain" disabled>비 중지</button>
+            <button id="toggle-pause">일시정지</button>
+        </div>
+
+        <div class="slider-container">
+            <div class="slider-group">
+                <label for="drop-count">빗방울 수: <span id="drop-count-value" class="value-display">100</span></label>
+                <input type="range" id="drop-count" min="10" max="300" value="100">
+            </div>
+            
+            <div class="slider-group">
+                <label for="min-speed">최소 속도: <span id="min-speed-value" class="value-display">2</span></label>
+                <input type="range" id="min-speed" min="1" max="10" value="2" step="0.5">
+            </div>
+            
+            <div class="slider-group">
+                <label for="max-speed">최대 속도: <span id="max-speed-value" class="value-display">8</span></label>
+                <input type="range" id="max-speed" min="2" max="15" value="8" step="0.5">
+            </div>
+            
+            <div class="slider-group">
+                <label for="rain-color">빗방울 색상:</label>
+                <input type="color" id="rain-color" value="#ffffff">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 비 효과 생성 함수
+        function createRainEffect(options = {}) {
+            // 기본 옵션 설정
+            const settings = {
+                container: document.body,
+                containerId: 'rain-container',
+                dropCount: 100,
+                minSpeed: 2,
+                maxSpeed: 8,
+                minWidth: 1,
+                maxWidth: 3,
+                minHeight: 10,
+                maxHeight: 20,
+                color: 'rgba(255, 255, 255, 0.8)',
+                ...options
+            };
+            
+            // 비 컨테이너 생성
+            let rainContainer = document.getElementById(settings.containerId);
+            if (!rainContainer) {
+                rainContainer = document.createElement('div');
+                rainContainer.id = settings.containerId;
+                settings.container.appendChild(rainContainer);
+            } else {
+                rainContainer.innerHTML = ''; // 기존 컨테이너가 있으면 비우기
+            }
+            
+            // 애니메이션 키프레임 추가 (아직 없는 경우)
+            if (!document.querySelector('#rain-keyframes')) {
+                const style = document.createElement('style');
+                style.id = 'rain-keyframes';
+                style.textContent = `
+                    @keyframes fall {
+                        0% { transform: translateY(-30px) }
+                        100% { transform: translateY(calc(100vh + 30px)) }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            
+            // 빗방울 생성 함수
+            function createRaindrop() {
+                const drop = document.createElement('div');
+                drop.className = 'raindrop';
+                
+                // 랜덤 속성 설정
+                const width = Math.random() * (settings.maxWidth - settings.minWidth) + settings.minWidth;
+                const height = Math.random() * (settings.maxHeight - settings.minHeight) + settings.minHeight;
+                const posX = Math.random() * 100; // 화면 너비의 퍼센트
+                const duration = Math.random() * (settings.maxSpeed - settings.minSpeed) + settings.minSpeed;
+                
+                // 스타일 적용
+                drop.style.width = `${width}px`;
+                drop.style.height = `${height}px`;
+                drop.style.left = `${posX}%`;
+                drop.style.top = '-30px';
+                drop.style.opacity = Math.random() * 0.5 + 0.5;
+                drop.style.background = `linear-gradient(transparent, ${settings.color})`;
+                drop.style.animation = `fall ${duration}s linear infinite`;
+                
+                rainContainer.appendChild(drop);
+            }
+            
+            // 빗방울 생성
+            for (let i = 0; i < settings.dropCount; i++) {
+                createRaindrop();
+            }
+            
+            // 컨트롤 함수 반환
+            return {
+                stop: () => {
+                    const container = document.getElementById(settings.containerId);
+                    if (container) container.remove();
+                },
+                pause: () => {
+                    const container = document.getElementById(settings.containerId);
+                    if (container) {
+                        const drops = container.querySelectorAll('.raindrop');
+                        drops.forEach(drop => {
+                            drop.style.animationPlayState = 'paused';
+                        });
+                    }
+                },
+                resume: () => {
+                    const container = document.getElementById(settings.containerId);
+                    if (container) {
+                        const drops = container.querySelectorAll('.raindrop');
+                        drops.forEach(drop => {
+                            drop.style.animationPlayState = 'running';
+                        });
+                    }
+                }
+            };
+        }
+
+        // UI 컨트롤 설정
+        let rain = null;
+        let isPaused = false;
+
+        // 버튼 요소 가져오기
+        const startButton = document.getElementById('start-rain');
+        const stopButton = document.getElementById('stop-rain');
+        const pauseButton = document.getElementById('toggle-pause');
+
+        // 슬라이더 요소 가져오기
+        const dropCountSlider = document.getElementById('drop-count');
+        const minSpeedSlider = document.getElementById('min-speed');
+        const maxSpeedSlider = document.getElementById('max-speed');
+        const colorPicker = document.getElementById('rain-color');
+
+        // 값 표시 요소 가져오기
+        const dropCountValue = document.getElementById('drop-count-value');
+        const minSpeedValue = document.getElementById('min-speed-value');
+        const maxSpeedValue = document.getElementById('max-speed-value');
+
+        // 비 시작 버튼 이벤트
+        startButton.addEventListener('click', () => {
+            // 현재 설정 값 가져오기
+            const dropCount = parseInt(dropCountSlider.value);
+            const minSpeed = parseFloat(minSpeedSlider.value);
+            const maxSpeed = parseFloat(maxSpeedSlider.value);
+            const color = hexToRgba(colorPicker.value, 0.8);
+
+            // 기존 비 효과가 있으면 중지
+            if (rain) {
+                rain.stop();
+            }
+
+            // 새 비 효과 생성
+            rain = createRainEffect({
+                dropCount: dropCount,
+                minSpeed: minSpeed,
+                maxSpeed: maxSpeed,
+                color: color
+            });
+
+            // 버튼 상태 업데이트
+            startButton.disabled = true;
+            stopButton.disabled = false;
+            pauseButton.disabled = false;
+            isPaused = false;
+            pauseButton.textContent = '일시정지';
+        });
+
+        // 비 중지 버튼 이벤트
+        stopButton.addEventListener('click', () => {
+            if (rain) {
+                rain.stop();
+                rain = null;
+            }
+            
+            // 버튼 상태 업데이트
+            startButton.disabled = false;
+            stopButton.disabled = true;
+            pauseButton.disabled = true;
+        });
+
+        // 일시정지/재개 버튼 이벤트
+        pauseButton.addEventListener('click', () => {
+            if (!rain) return;
+            
+            if (isPaused) {
+                rain.resume();
+                pauseButton.textContent = '일시정지';
+            } else {
+                rain.pause();
+                pauseButton.textContent = '재개';
+            }
+            
+            isPaused = !isPaused;
+        });
+
+        // 슬라이더 값 변경 이벤트
+        dropCountSlider.addEventListener('input', () => {
+            dropCountValue.textContent = dropCountSlider.value;
+        });
+
+        minSpeedSlider.addEventListener('input', () => {
+            minSpeedValue.textContent = minSpeedSlider.value;
+            // 최소 속도가 최대 속도보다 크면 최대 속도 조정
+            if (parseFloat(minSpeedSlider.value) > parseFloat(maxSpeedSlider.value)) {
+                maxSpeedSlider.value = minSpeedSlider.value;
+                maxSpeedValue.textContent = maxSpeedSlider.value;
+            }
+        });
+
+        maxSpeedSlider.addEventListener('input', () => {
+            maxSpeedValue.textContent = maxSpeedSlider.value;
+            // 최대 속도가 최소 속도보다 작으면 최소 속도 조정
+            if (parseFloat(maxSpeedSlider.value) < parseFloat(minSpeedSlider.value)) {
+                minSpeedSlider.value = maxSpeedSlider.value;
+                minSpeedValue.textContent = minSpeedSlider.value;
+            }
+        });
+
+        // HEX 색상을 RGBA로 변환하는 함수
+        function hexToRgba(hex, alpha = 1) {
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        // 페이지 로드 시 자동으로 비 효과 시작 (선택 사항)
+        window.addEventListener('load', () => {
+            startButton.click();
+        });
+    </script>
+</body>
+</html>
